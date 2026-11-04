@@ -154,15 +154,47 @@ systemctl daemon-reload && systemctl enable --now lawu-corpus.service
 cp -r $DIST/. $WWW/
 chown -R www-data:www-data $WWW
 
-# ---------- B4. Nginx: location /api/corpus + /api/ebooks ----------
-if ! grep -q 'api/corpus' /etc/nginx/sites-available/lawu-dashboard; then
-  sed -i '/location \/api\/ {/i \
-    # ---- Corpus & Ebook API (lawu-corpus :3002) ----\
-    location /api/corpus/ { proxy_pass http://127.0.0.1:3002; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_read_timeout 60s; }\
-    location /api/ebooks { proxy_pass http://127.0.0.1:3002; proxy_http_version 1.1; proxy_set_header Host \$host; client_max_body_size 500M; proxy_read_timeout 300s; proxy_request_buffering off; }\
-' /etc/nginx/sites-available/lawu-dashboard
+# ---------- B4. Nginx: snippet include (anti-escape-mangle) ----------
+# Tulis location blocks ke file snippet terpisah, lalu include-kan.
+# Pendekatan sed multi-line dengan escape \\ mudah rusak saat paste SSH
+# (lihat incident v3.5.4: baris jadi 1 line, diawali #, nginx baca komentar).
+mkdir -p /etc/nginx/snippets
+cat > /etc/nginx/snippets/lawu-corpus.conf <<'NGINXEOF'
+# ---- Corpus & Ebook API (Axum :3002) ----
+location /api/corpus/ {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_read_timeout 60s;
+}
+
+location /api/ebooks {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    client_max_body_size 500M;
+    proxy_read_timeout 300s;
+    proxy_request_buffering off;
+}
+NGINXEOF
+# Hapus baris komentar lama (kalau ada — dari sed v3.5.2 yang gagal)
+sed -i '/# ---- Corpus & Ebook API/d' /etc/nginx/sites-available/lawu-dashboard
+# Sisipkan include di dalam blok server { } — sebelum 'location /api/ {' pertama
+if ! grep -q 'snippets/lawu-corpus.conf' /etc/nginx/sites-available/lawu-dashboard; then
+  if grep -q 'location /api/ {' /etc/nginx/sites-available/lawu-dashboard; then
+    sed -i '/location \/api\/ {/i \    include /etc/nginx/snippets/lawu-corpus.conf;' /etc/nginx/sites-available/lawu-dashboard
+  elif grep -q 'server_name' /etc/nginx/sites-available/lawu-dashboard; then
+    sed -i '/server_name/a \    include /etc/nginx/snippets/lawu-corpus.conf;' /etc/nginx/sites-available/lawu-dashboard
+  else
+    echo "WARNING: tidak ketemu anchor location /api/ { atau server_name — insert manual include snippet di blok server { }"
+  fi
 fi
 nginx -t && systemctl reload nginx
+echo "  OK: nginx snippet lawu-corpus.conf di-include"
 
 # ---------- B5. Ingest korpus skill + verifikasi ----------
 # Sebagai lawu (BUKAN root) agar file Tantivy index tidak jadi milik root:
