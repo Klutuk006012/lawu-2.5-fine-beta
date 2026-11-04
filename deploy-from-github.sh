@@ -219,17 +219,17 @@ echo "  OK: nginx snippet v3.6.0 (9 route) di-include"
 # ---------- B5. Verifikasi v3.6.0 ----------
 echo "--- v3.6.0 health check (4 backend + nginx):"
 for p in 3001:lawu-server 3002:lawu-corpus 3003:lawu-auth 3004:lawu-monitor 3005:lawu-chat; do
-  PORT=${p%%:*}; NAME=${p##*:}
-  if curl -sf http://127.0.0.1:$PORT/health >/dev/null 2>&1; then
-    echo "  OK: $NAME (:$PORT) healthy"
+  PORT=\${p%%:*}; NAME=\${p##*:}
+  if curl -sf http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
+    echo "  OK: \$NAME (:\$PORT) healthy"
   else
-    echo "  [!] $NAME (:$PORT) tidak responsif — cek: journalctl -u $NAME -n 20"
+    echo "  [!] \$NAME (:\$PORT) tidak responsif — cek: journalctl -u \$NAME -n 20"
   fi
 done
 echo
 echo "--- Test login default (dev@lawu.ai.id / 12345678):"
-TOKEN=$(curl -s -X POST http://127.0.0.1:3003/api/auth/login -H 'Content-Type: application/json' -d '{"email":"dev@lawu.ai.id","password":"12345678"}' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("token","(FAIL)"))' 2>/dev/null)
-echo "  Token: ${TOKEN:0:40}..."
+TOKEN=\$(curl -s -X POST http://127.0.0.1:3003/api/auth/login -H 'Content-Type: application/json' -d '{"email":"dev@lawu.ai.id","password":"12345678"}' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("token","(FAIL)"))' 2>/dev/null)
+echo "  Token: \${TOKEN:0:40}..."
 echo
 echo "=== DEPLOY v3.6.0 SELESAI ==="
 echo "Buka dashboard → login dev@lawu.ai.id / 12345678 → verifikasi:"
