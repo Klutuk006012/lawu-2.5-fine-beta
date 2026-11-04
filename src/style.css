@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Lawu-2.5-Fine — Palet Warna Resmi
+   LIGHT MODE (Gaya Kertas & Catatan Bersih)
+   ============================================ */
+:root {
+  --background: #f8f7f5;
+  --foreground: #202124;
+  --card: #ffffff;
+  --card-foreground: #202124;
+  --primary: #1a73e8;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f3f4;
+  --secondary-foreground: #202124;
+  --muted: #f1f3f4;
+  --muted-foreground: #5f6368;
+  --border: #e5e3dc;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #e8eaed;
+  --card: #1e1f22;
+  --card-foreground: #e8eaed;
+  --primary: #8ab4f8;
+  --primary-foreground: #121212;
+  --secondary: #26282b;
+  --secondary-foreground: #e8eaed;
+  --muted: #26282b;
+  --muted-foreground: #9aa0a6;
+  --border: #3c4043;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
