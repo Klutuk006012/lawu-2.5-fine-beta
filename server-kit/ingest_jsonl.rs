@@ -18,10 +18,9 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use tantivy::{
     collector::Count,
-    index::{Index, IndexReader},
     query::{AllQuery, TermQuery},
-    schema::{IndexRecordOption, Schema, Value},
-    IndexWriter, ReloadPolicy, Term,
+    schema::{IndexRecordOption, Schema},
+    Index, IndexReader, IndexWriter, ReloadPolicy, Term,
 };
 
 #[derive(Deserialize, Debug)]
@@ -103,16 +102,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     // ---- buka index & deteksi field by name (robust terhadap skema live) ----
-    let (mut index, schema, reader) = open_index(&index_dir)?;
+    let (index, schema, reader) = open_index(&index_dir)?;
     let field_title = schema
         .get_field("title")
-        .ok_or_else(|| "field 'title' tidak ditemukan di skema index")?;
+        .map_err(|_| "field 'title' tidak ditemukan di skema index")?;
     let field_text = schema
         .get_field("text")
-        .ok_or_else(|| "field 'text' tidak ditemukan di skema index")?;
+        .map_err(|_| "field 'text' tidak ditemukan di skema index")?;
     let field_docid = schema
         .get_field("docid")
-        .ok_or_else(|| "field 'docid' tidak ditemukan di skema index")?;
+        .map_err(|_| "field 'docid' tidak ditemukan di skema index")?;
 
     let searcher = reader.searcher();
     let total_existing = searcher.search(&AllQuery, &Count)?;
@@ -135,6 +134,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         "[lawu-ingest] dedup selesai: {} dokumen baru, {skipped} sudah ada (skip)",
         new_docs.len()
     );
+    if skipped == 0 && total_existing > 0 && !new_docs.is_empty() {
+        eprintln!(
+            "[lawu-ingest] PERINGATAN: 0 duplikat terdeteksi padahal index berisi {total_existing} dok.\n             Kemungkinan field 'docid' di skema tidak ter-index atau di-tokenisasi (bukan raw/STRING) — dedup bisa meleset, re-ingest akan menduplikasi dok."
+        );
+    }
 
     if dry_run {
         eprintln!("[lawu-ingest] DRY-RUN — tidak ada yang ditulis. Selesai.");
@@ -148,7 +152,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ---- tulis ----
     let mut writer: IndexWriter = index.writer(64 * 1024 * 1024)?;
     for d in &new_docs {
-        let mut doc = tantivy::Document::default();
+        let mut doc = tantivy::TantivyDocument::default();
         doc.add_text(field_title, &d.title);
         // truncate text panjang agar aman (500K chars sama dengan pipeline ebook)
         let text = if d.text.len() > 500_000 { &d.text[..500_000] } else { &d.text[..] };

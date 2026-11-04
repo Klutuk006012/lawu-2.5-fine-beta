@@ -88,17 +88,6 @@ struct EbookDto {
     indexed: bool,           // sudah masuk ebooks.jsonl?
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StatusDto {
-    kind: String,            // crawl | extract
-    running: bool,
-    pid: Option<u32>,
-    started_at: Option<String>,
-    finished_at: Option<String>,
-    last_result: serde_json::Value,
-}
-
 // ------------------------------ Helpers ----------------------------------
 fn ensure_dirs() {
     for d in [EBOOKS_DIR, PROCESSED_DIR, STATE_DIR, LOG_DIR] {
@@ -120,7 +109,7 @@ fn read_custom_entries() -> Vec<serde_json::Value> {
 
 fn append_custom_entry(url: &str, category: &str) -> serde_json::Value {
     let existing = read_custom_entries();
-    let dup = existing.iter().any(|v| v.get("url").and_then(|u| u.as_str()) == url);
+    let dup = existing.iter().any(|v| v.get("url").and_then(|u| u.as_str()) == Some(url));
     if dup {
         return json!({ "duplicate": true });
     }
@@ -419,12 +408,13 @@ async fn list_ebooks() -> impl IntoResponse {
                 .flatten()
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_default();
+            let indexed = indexed_files.contains(&name);
             out.push(EbookDto {
                 name,
                 size_bytes: meta.len(),
                 modified_at: modified,
                 kind,
-                indexed: indexed_files.contains(&name),
+                indexed,
             });
         }
     }
@@ -564,18 +554,18 @@ async fn status() -> impl IntoResponse {
     let last_crawl = read_json(CRAWL_STATE).get("_last_run").cloned().unwrap_or(json!({}));
     Json(json!({
         "crawl": {
-            "running": crawl.get("pid").and_then(|p| p.as_u64()).map(pid_alive).unwrap_or(false),
+            "running": crawl.get("pid").and_then(|p| p.as_u64()).map(|p| pid_alive(p as u32)).unwrap_or(false),
             "pid": crawl.get("pid"),
             "startedAt": crawl.get("started_at"),
             "lastResult": last_crawl,
         },
         "extract": {
-            "running": extract.get("pid").and_then(|p| p.as_u64()).map(pid_alive).unwrap_or(false),
+            "running": extract.get("pid").and_then(|p| p.as_u64()).map(|p| pid_alive(p as u32)).unwrap_or(false),
             "pid": extract.get("pid"),
             "startedAt": extract.get("started_at"),
         },
         "ingest": {
-            "running": ingest.get("pid").and_then(|p| p.as_u64()).map(pid_alive).unwrap_or(false),
+            "running": ingest.get("pid").and_then(|p| p.as_u64()).map(|p| pid_alive(p as u32)).unwrap_or(false),
             "pid": ingest.get("pid"),
             "startedAt": ingest.get("started_at"),
             "file": ingest.get("file"),

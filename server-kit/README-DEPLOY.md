@@ -1,7 +1,15 @@
 # Lawu-2.5-Fine — Corpus Kit (Web Korpus + Ebook UI)
 
-Semua sumber deploy ada di **satu repo GitHub**: `Klutuk006012/lawu-dashboard` (public).
+Semua sumber deploy ada di **satu repo GitHub**: `Klutuk006012/lawu-2.5-fine-beta` (public).
 Deploy di srv-fine = **git clone + 1 script**. Tanpa npm/node di server (dist sudah di-commit).
+
+> ⚠️ **WAJIB dijalankan sebagai user `lawu` — BUKAN root.** Script menyentuh `$HOME/lawu-server`
+> dan menjalankan `cargo build`. Sebagai root: cari `/root/lawu-server` (tidak ada) dan hasil
+> build jadi milik root. Gunakan pola `su - lawu -c '...'` di bawah.
+>
+> ℹ️ **v3.5.1**: `corpus_api.rs` sudah diverifikasi compile + smoke test di sandbox
+> (cargo 1.99.1, 8 endpoint hijau). File besar (`lawu-ebooks.tar.gz` 244MB + PDF ebook) tidak
+> ada di repo — kirim langsung ke srv-fine (scp/rsync).
 
 ## Isi Repo (yang relevan untuk deploy)
 
@@ -20,9 +28,8 @@ Deploy di srv-fine = **git clone + 1 script**. Tanpa npm/node di server (dist su
 ## Deploy di srv-fine (3 perintah)
 
 ```bash
-cd /tmp
-git clone --depth 1 https://github.com/Klutuk006012/lawu-dashboard.git lawu-deploy
-cd lawu-deploy && bash deploy-from-github.sh
+# sebagai root di srv-fine — satu baris:
+rm -rf /tmp/lawu-deploy && su - lawu -c 'git clone --depth 1 https://github.com/Klutuk006012/lawu-2.5-fine-beta.git /tmp/lawu-deploy && cd /tmp/lawu-deploy && bash deploy-from-github.sh'
 ```
 
 - **Bagian A (otomatis, user lawu)**: patch Cargo.toml → `cargo build --release` →

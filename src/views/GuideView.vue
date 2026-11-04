@@ -24,10 +24,11 @@ const steps = ref<Step[]>([
   { num: '11', title: 'Model GGUF', desc: 'Q4_K_M (4.4GB) ke HDD', status: 'done' },
   { num: '12', title: 'Korpus Wikipedia-ID', desc: '1.38jt artikel terindex, query < 1ms', status: 'done' },
   { num: '13', title: 'Serve + systemd', desc: 'llama-server -t 6 -c 4096, systemd auto-start', status: 'done' },
-  { num: '14', title: 'Otomasi', desc: 'watch_ebooks.sh, backup, cron', status: 'pending' },
+  { num: '14', title: 'Otomasi', desc: 'watch_ebooks.sh, backup, cron — backup harian 03:00, health check */5', status: 'done' },
   { num: '15', title: 'Load Testing', desc: 'k6: p95 /api/search < 300ms dengan 20 VUs', status: 'pending' },
-  { num: '16', title: 'Nginx Reverse Proxy', desc: 'port 80 → Axum :3001 + llama :8080', status: 'pending' },
-  { num: '17', title: 'Integrasi Dashboard', desc: 'Vue.js 3 (Vite + Pinia) deploy ke srv-fine', status: 'in-progress' },
+  { num: '16', title: 'Nginx Reverse Proxy', desc: 'port 80 → Vue static + Axum :3001 + llama :8080', status: 'done' },
+  { num: '17', title: 'Integrasi Dashboard', desc: 'Vue.js 3 (Vite + Pinia) deploy ke srv-fine', status: 'done' },
+  { num: '17b', title: 'Corpus Kit (Web Korpus + Ebook)', desc: 'Deploy via GitHub lawu-2.5-fine-beta — lawu-corpus :3002 (binary terpisah)', status: 'in-progress' },
   { num: '18', title: 'Hardening', desc: 'UFW + SSH key-only + fail2ban (TERAKHIR!)', status: 'pending' },
   { num: '19', title: 'Go-Live Checklist', desc: 'Audit final sebelum publik', status: 'pending' },
 ])
@@ -99,7 +100,7 @@ const statusBadge = {
         <li>
           <a href="#" class="inline-flex items-center gap-1.5 text-primary hover:underline">
             <ExternalLink class="h-3.5 w-3.5" />
-            PRD v3.4.0 — Spesifikasi lengkap proyek
+            PRD v3.5.1 — Spesifikasi lengkap proyek
           </a>
         </li>
         <li>
