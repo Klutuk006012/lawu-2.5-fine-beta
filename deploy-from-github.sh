@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================
-# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.5.0 di srv-fine
-# SATU SUMBER: GitHub repo lawu-dashboard (Klutuk006012)
+# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.5.2 di srv-fine
+# SATU SUMBER: GitHub repo lawu-2.5-fine-beta (Klutuk006012)
 # ------------------------------------------------------------
 # Jalankan di srv-fine sebagai user LAWU:
 #   cd /tmp
-#   git clone --depth 1 https://github.com/Klutuk006012/lawu-2.5-fine-beta.git lawu-deploy
+#   git clone --depth 1 https://github.com/Klutuk006012/lawu-dashboard.git lawu-deploy
 #   cd lawu-deploy && bash deploy-from-github.sh
 #   (atau kalau sudah pernah clone: cd /tmp/lawu-deploy && git pull && bash deploy-from-github.sh)
 #
@@ -24,7 +24,7 @@
 # ============================================================
 set -euo pipefail
 
-REPO_URL="https://github.com/Klutuk006012/lawu-2.5-fine-beta.git"
+REPO_URL="https://github.com/Klutuk006012/lawu-dashboard.git"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRV_DIR="$HOME/lawu-server"
 
@@ -37,7 +37,7 @@ log "Pemeriksaan awal"
 test -d "$SRV_DIR" || die "$SRV_DIR tidak ada — jalankan dari repo hasil clone di srv-fine"
 test -f "$SRC_DIR/server-kit/corpus_api.rs" || die "server-kit/corpus_api.rs tidak ditemukan — repo lama? git pull dulu"
 test -f "$SRC_DIR/deploy/dashboard-dist/index.html" || die "deploy/dashboard-dist tidak ditemukan — repo lama? git pull dulu"
-echo "  OK: repo v3.5.0 + lawu-server ditemukan"
+echo "  OK: repo v3.5.2 + lawu-server ditemukan"
 
 # ---------- A1. Salin source binary baru ----------
 log "A1. Salin binary baru ke $SRV_DIR/src/bin/ (main.rs produksi TIDAK disentuh)"
@@ -75,10 +75,20 @@ print('  Cargo.toml: ' + (', '.join(changed) if changed else 'sudah lengkap'))
 PYEOF
 cd "$SRV_DIR"
 cargo build --release 2>&1 | tail -4
-for b in lawu-corpus lawu-ingest; do
-  test -x "target/release/$b" || die "binary $b gagal dibangun!"
+# Cargo menamai binary dari nama file di src/bin/ -> corpus_api + ingest_jsonl.
+# systemd unit (ExecStart) & corpus_api.rs (spawn lawu-ingest) memakai nama
+# lawu-corpus / lawu-ingest — buat alias copy setelah build (rm dulu supaya
+# aman dijalankan ulang saat binary lama masih berjalan).
+for pair in corpus_api:lawu-corpus ingest_jsonl:lawu-ingest; do
+  src="target/release/${pair%%:*}"
+  dst="target/release/${pair##*:}"
+  if [ ! -x "$src" ]; then
+    ls -1 target/release/ 2>/dev/null | grep -Ei 'corpus|ingest|lawu' || true
+    die "binary ${pair%%:*} tidak ditemukan setelah build!"
+  fi
+  rm -f "$dst" && cp "$src" "$dst"
 done
-echo "  OK: target/release/lawu-corpus + lawu-ingest"
+echo "  OK: target/release/lawu-corpus + lawu-ingest (alias corpus_api + ingest_jsonl)"
 
 # ---------- A3. Salin python scripts (kalau izin) ----------
 log "A3. Salin web_ingest.py + extract_ebooks.py ke /opt/lawu/scripts"
@@ -148,9 +158,10 @@ fi
 nginx -t && systemctl reload nginx
 
 # ---------- B5. Ingest korpus skill + verifikasi ----------
-$SRV_DIR/target/release/lawu-ingest --file /opt/lawu/korpus-skill/lawu-skill.jsonl
-sleep 1
-curl -s http://127.0.0.1:3002/health && echo
+# Sebagai lawu (BUKAN root) agar file Tantivy index tidak jadi milik root:
+su - lawu -c "$SRV_DIR/target/release/lawu-ingest --file /opt/lawu/korpus-skill/lawu-skill.jsonl"
+sleep 2
+for i in 1 2 3 4 5; do curl -sf http://127.0.0.1:3002/health && break || sleep 2; done; echo
 systemctl status lawu-corpus --no-pager -l | head -8
 echo "=== DEPLOY SELESAI — buka dashboard, menu 'Web Korpus' & 'Ebook & Korpus' siap ==="
 ROOTCMDS

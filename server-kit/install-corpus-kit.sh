@@ -81,11 +81,21 @@ print('  Cargo.toml diperbarui: ' + (', '.join(changed) if changed else 'sudah l
 PYEOF
 
 # ---------- A3. Build ----------
-log "A3. cargo build --release (binary baru: lawu-corpus, lawu-ingest)"
+log "A3. cargo build --release (binary: corpus_api + ingest_jsonl, alias lawu-corpus + lawu-ingest)"
 cd "$SRV_DIR"
 cargo build --release 2>&1 | tail -5
-for b in lawu-corpus lawu-ingest; do
-  test -x "target/release/$b" || die "binary $b tidak ditemukan setelah build!"
+# Cargo menamai binary dari nama file di src/bin/ (corpus_api, ingest_jsonl).
+# systemd unit (ExecStart) & corpus_api.rs (spawn lawu-ingest) memakai nama
+# lawu-corpus / lawu-ingest — buat alias copy setelah build (rm dulu supaya
+# aman dijalankan ulang saat binary lama masih berjalan).
+for pair in corpus_api:lawu-corpus ingest_jsonl:lawu-ingest; do
+  src="target/release/${pair%%:*}"
+  dst="target/release/${pair##*:}"
+  if [ ! -x "$src" ]; then
+    ls -1 target/release/ 2>/dev/null | grep -Ei 'corpus|ingest|lawu' || true
+    die "binary ${pair%%:*} tidak ditemukan setelah build!"
+  fi
+  rm -f "$dst" && cp "$src" "$dst"
 done
 echo "  OK: target/release/lawu-corpus + target/release/lawu-ingest"
 
@@ -164,13 +174,14 @@ systemctl status lawu-corpus.service --no-pager -l | head -12
 # nano /etc/nginx/sites-available/lawu-dashboard
 nginx -t && systemctl reload nginx
 
-# B4. Ingest korpus skill (materi Advanced Google Search) — langsung:
-$SRV_DIR/target/release/lawu-ingest --file $KIT_DIR/korpus-skill/lawu-skill.jsonl
+# B4. Ingest korpus skill (materi Advanced Google Search) — sebagai lawu
+#     (BUKAN root — agar file Tantivy index tidak jadi milik root):
+su - lawu -c "$SRV_DIR/target/release/lawu-ingest --file $KIT_DIR/korpus-skill/lawu-skill.jsonl"
 
 #     Ingest hasil crawl web korpus (setelah crawl pertama selesai):
-# $SRV_DIR/target/release/lawu-ingest --file /mnt/data/processed_markdowns/web_corpus.jsonl
+# su - lawu -c "$SRV_DIR/target/release/lawu-ingest --file /mnt/data/processed_markdowns/web_corpus.jsonl"
 #     Ingest ebook (setelah extract selesai):
-# $SRV_DIR/target/release/lawu-ingest --file /mnt/data/processed_markdowns/ebooks.jsonl
+# su - lawu -c "$SRV_DIR/target/release/lawu-ingest --file /mnt/data/processed_markdowns/ebooks.jsonl"
 
 # Test API:
 curl -s http://127.0.0.1:3002/health

@@ -220,6 +220,13 @@ HDD 500GB (DATA — /dev/sdb1, ext4, automount via fstab: `defaults,noatime,nofa
 > di sandbox (cargo 1.99.1), diperbaiki, rebuild + smoke test 8 endpoint hijau semua. Lihat
 > pelajaran #16 & #17.
 >
+> ✅ **UPDATE v3.5.2 (2026-11-04):** cargo build di srv-fine sukses tapi script mati
+> `binary lawu-corpus gagal dibangun!` — Cargo menamai binary dari nama file `src/bin/`
+> (`corpus_api`, `ingest_jsonl`) sedangkan unit systemd & konstanta `LAWU_INGEST` memanggil
+> `lawu-corpus` / `lawu-ingest`. Solusi: script deploy & install-kit kini membuat **alias copy**
+> setelah build (idempoten), ingest di Bagian B jalan sebagai `lawu` (bukan root), health check
+> retry 5×. Lihat pelajaran #18.
+>
 > ✅ **UPDATE v3.3.0 (2026-11-04):** RAM di-upgrade dari 8GB ke 16GB. Model di-upgrade dari
 > Q3_K_M ke Q4_K_M. Korpus Wikipedia-ID 1,38 juta artikel sudah ter-index (Langkah 12 selesai).
 > Search API lawu-server jalan sebagai systemd (Langkah 13 selesai). Test serve llama-server
@@ -244,7 +251,7 @@ HDD 500GB (DATA — /dev/sdb1, ext4, automount via fstab: `defaults,noatime,nofa
 | 13b. systemd lawu-server | ✅ | auto-start post-reboot verified |
 | 14. systemd llama-server | ✅ | lawu-llama.service active, Q4_K_M |
 | 15. Otomasi | ✅ | backup harian 03:00, health check */5 + auto-restart, watch_ebooks */30 |
-| 15b. **Web Korpus + Ebook UI** | 🚧 | deploy via GitHub `lawu-2.5-fine-beta` — corpus_api.rs v3.5.1 fixed (compile + smoke test hijau di sandbox), tinggal re-run deploy di srv-fine |
+| 15b. **Web Korpus + Ebook UI** | 🚧 | deploy via GitHub `lawu-2.5-fine-beta` **v3.5.2** — compile hijau + alias binary `lawu-corpus`/`lawu-ingest` otomatis di script, tinggal re-run deploy di srv-fine |
 | 16. k6 load test | ⏳ | p95 < 300ms dengan 20 VUs |
 | 17. Nginx reverse proxy | ✅ | port 80 → Vue.js static + Axum :3001 + llama :8080 |
 | 18. Integrasi Dashboard | ✅ | Vue.js 3 (Vite + Pinia) deploy ke srv-fine via GitHub, nginx serve |
@@ -257,6 +264,7 @@ HDD 500GB (DATA — /dev/sdb1, ext4, automount via fstab: `defaults,noatime,nofa
 - 2026-11-03 (v3.2.0): Konversi parquet → markdown per-artikel memicu inode exhaustion (file system habis di 119K file, padahal size masih 473MB). Penyebab: `mkfs.ext4 -T largefile4` di Langkah 3.C mengoptimasi untuk file besar tapi mengurangi inode count drastis (4MB/inode → ~119K total inodes). Solusi: ubah strategi dari 600K file `.md` ke 1 file JSONL per split (1 inode per split). Pelajaran: untuk corpus 600K+ dokumen kecil, gunakan JSONL/parquet, BUKAN file individual.
 - 2026-11-04 (v3.4.0): REVERT Paten 2 ke Vue.js 3. Penyebab: developer sempat salah ubah Paten 2 dari Vue.js ke Next.js di v3.3.0 (alasan: dashboard dev pakai Next.js), padahal user sudah tegaskan Vue.js adalah Paten permanen. Solusi: revert PRD, hapus dashboard Next.js di srv-fine, rencanakan rebuild dengan Vue.js 3 (Vite + Pinia). Pelajaran #12: **Paten tidak boleh diubah tanpa explicit approval user — walau ada alasan teknis.** Backend Rust + Tantivy + Wikipedia-ID + Q4_K_M tetap.
 - 2026-11-04 (v3.5.1): `corpus_api.rs` gagal compile di srv-fine — 5 error (E0308 `Option<&str> == &str`, E0382 borrow of moved value `name`, E0631×3 `map(pid_alive)` u64→u32) karena file tidak pernah di-compile sebelum dikirim. Solusi: install Rust toolchain di sandbox, reproduksi error PERSIS 5/5, perbaiki (banding `== Some(url)`, hitung `indexed` sebelum move, cast `p as u32`), rebuild bersih + smoke test 8 endpoint hijau. Pelajaran #16: Rust source WAJIB compile dulu di sandbox. Ditambah: deploy script pertama dijalankan sebagai root → mencari `/root/lawu-server` (tidak ada). Pelajaran #17: script deploy wajib jalan sebagai user pemilik home-nya.
+- 2026-11-04 (v3.5.2): cargo build di srv-fine sukses (21s) tapi script deploy mati — `binary lawu-corpus gagal dibangun!`. Penyebab: Cargo menamai binary dari stem file `src/bin/` → `corpus_api` + `ingest_jsonl`, sedangkan script, unit systemd (ExecStart), dan konstanta `LAWU_INGEST` di corpus_api.rs memanggil `lawu-corpus`/`lawu-ingest`. Solusi: script deploy & install-kit membuat alias copy setelah build (rm+cp, idempoten, aman saat binary lama masih jalan); bonus: ingest di Bagian B diganti `su - lawu -c` (bukan root) agar file Tantivy index tidak jadi milik root + health check retry 5×.
 
 ---
 
@@ -301,3 +309,4 @@ Ebook: upload UI / SCP → `/mnt/data/ebooks` → `extract_ebooks.py` → `ebook
 15. **Arsitektur service terpisah = deploy zero-risk** — fitur baru (corpus :3002) dibuat sebagai binary TERPISAH di `src/bin/`, bukan edit `main.rs` produksi. Chat yang sudah jalan tidak pernah terganggu oleh rilis fitur baru.
 16. **Compile dulu di sandbox, baru kirim ke server asli** — Rust source yang tidak pernah di-build menyimpan bug tersembunyi (E0308/E0382/E0631). Sandbox wajib punya toolchain yang sama (cargo 1.99.1): reproduksi error → fix → rebuild → smoke test endpoint, SEMUA hijau baru deploy.
 17. **Deploy script sadar-user** — script yang menyentuh `$HOME/lawu-server` wajib dijalankan sebagai user `lawu` (bukan root): sebagai root script mencari `/root/lawu-server` dan hasil `cargo build` jadi milik root. Pola aman: `su - lawu -c 'git clone … && bash deploy-from-github.sh'`.
+18. **Nama target Cargo = stem file di src/bin/** — cargo menamai binary dari nama file (`corpus_api.rs` → `corpus_api`), BUKAN nama "manis" seperti `lawu-corpus`. Kalau systemd unit / spawn path / script mengharapkan nama lain, buat alias copy di script deploy (`rm -f` + `cp`, idempoten) — verifikasi akhir: `ls target/release/{corpus_api,ingest_jsonl,lawu-corpus,lawu-ingest}` semuanya ada. Bonus: proses ingest index JANGAN dijalankan sebagai root (file index milik root → service lawu gagal tulis).
