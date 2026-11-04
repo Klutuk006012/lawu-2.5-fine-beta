@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.5.2 di srv-fine
+# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.5.3 di srv-fine
 # SATU SUMBER: GitHub repo lawu-2.5-fine-beta (Klutuk006012)
 # ------------------------------------------------------------
 # Jalankan di srv-fine sebagai user LAWU:
@@ -37,7 +37,7 @@ log "Pemeriksaan awal"
 test -d "$SRV_DIR" || die "$SRV_DIR tidak ada — jalankan dari repo hasil clone di srv-fine"
 test -f "$SRC_DIR/server-kit/corpus_api.rs" || die "server-kit/corpus_api.rs tidak ditemukan — repo lama? git pull dulu"
 test -f "$SRC_DIR/deploy/dashboard-dist/index.html" || die "deploy/dashboard-dist tidak ditemukan — repo lama? git pull dulu"
-echo "  OK: repo v3.5.2 + lawu-server ditemukan"
+echo "  OK: repo v3.5.3 + lawu-server ditemukan"
 
 # ---------- A1. Salin source binary baru ----------
 log "A1. Salin binary baru ke $SRV_DIR/src/bin/ (main.rs produksi TIDAK disentuh)"
@@ -135,11 +135,18 @@ mkdir -p /opt/lawu/korpus-skill
 cp $KIT/korpus-skill/*.md $KIT/korpus-skill/lawu-skill.jsonl /opt/lawu/korpus-skill/
 chown -R lawu:lawu /opt/lawu/korpus-skill
 
-# ---------- B2. Python scripts + venv deps + systemd ----------
+# ---------- B2. Python venv + scripts + deps + systemd ----------
 mkdir -p /opt/lawu/scripts /var/lib/lawu /var/log/lawu /mnt/data/ebooks /mnt/data/processed_markdowns
 cp $KIT/web_ingest.py $KIT/extract_ebooks.py /opt/lawu/scripts/ && chmod +x /opt/lawu/scripts/*.py
+# Buat venv kalau belum ada (corpus_api.rs hardcode /opt/lawu/venv/bin/python3):
+if [ ! -x /opt/lawu/venv/bin/python3 ]; then
+  python3 -c 'import venv' 2>/dev/null || apt-get install -y -qq python3-venv
+  python3 -m venv /opt/lawu/venv
+fi
+/opt/lawu/venv/bin/python3 -m pip install --quiet --upgrade pip
 /opt/lawu/venv/bin/pip install -q requests beautifulsoup4 lxml pypdf ebooklib python-docx
-chown -R lawu:lawu /var/lib/lawu /var/log/lawu /mnt/data/ebooks /mnt/data/processed_markdowns
+/opt/lawu/venv/bin/python3 -c 'import requests, bs4, lxml, pypdf, ebooklib, docx'  # smoke import
+chown -R lawu:lawu /opt/lawu/venv /var/lib/lawu /var/log/lawu /mnt/data/ebooks /mnt/data/processed_markdowns
 cp $KIT/lawu-corpus.service /etc/systemd/system/lawu-corpus.service
 systemctl daemon-reload && systemctl enable --now lawu-corpus.service
 
