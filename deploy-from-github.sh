@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.6.0 di srv-fine
+# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.7.0 di srv-fine
 # SATU SUMBER: GitHub repo lawu-2.5-fine-beta (Klutuk006012)
 # ------------------------------------------------------------
 # Jalankan di srv-fine sebagai user LAWU:
@@ -37,7 +37,7 @@ log "Pemeriksaan awal"
 test -d "$SRV_DIR" || die "$SRV_DIR tidak ada — jalankan dari repo hasil clone di srv-fine"
 test -f "$SRC_DIR/server-kit/corpus_api.rs" || die "server-kit/corpus_api.rs tidak ditemukan — repo lama? git pull dulu"
 test -f "$SRC_DIR/deploy/dashboard-dist/index.html" || die "deploy/dashboard-dist tidak ditemukan — repo lama? git pull dulu"
-echo "  OK: repo v3.6.0 + lawu-server ditemukan"
+echo "  OK: repo v3.7.0 + lawu-server ditemukan"
 
 # ---------- A1. Salin source binary baru ----------
 log "A1. Salin binary baru ke $SRV_DIR/src/bin/ (main.rs produksi TIDAK disentuh)"
@@ -47,11 +47,12 @@ cp "$SRC_DIR/server-kit/ingest_jsonl.rs" "$SRV_DIR/src/bin/ingest_jsonl.rs"
 cp "$SRC_DIR/server-kit/auth_api.rs"     "$SRV_DIR/src/bin/auth_api.rs"
 cp "$SRC_DIR/server-kit/chat_api.rs"     "$SRV_DIR/src/bin/chat_api.rs"
 cp "$SRC_DIR/server-kit/monitor_api.rs"  "$SRV_DIR/src/bin/monitor_api.rs"
+cp "$SRC_DIR/server-kit/training_api.rs" "$SRV_DIR/src/bin/training_api.rs"
 cp "$SRC_DIR/server-kit/auth_middleware.rs" "$SRV_DIR/src/auth_middleware.rs"
 # v3.6.0: copy migrations/schema.sql (di-include_str! oleh auth_api.rs saat compile)
 mkdir -p "$SRV_DIR/migrations"
 cp "$SRC_DIR/server-kit/migrations/schema.sql" "$SRV_DIR/migrations/schema.sql"
-echo "  OK: corpus_api + ingest_jsonl + auth_api + chat_api + monitor_api + auth_middleware + migrations/schema.sql"
+echo "  OK: corpus_api + ingest_jsonl + auth_api + chat_api + monitor_api + training_api + auth_middleware + migrations/schema.sql"
 
 # ---------- A2. Patch Cargo.toml + build ----------
 log "A2. Patch Cargo.toml + cargo build --release (±1-2 menit)"
@@ -118,16 +119,16 @@ cd "$SRV_DIR"
 cargo build --release 2>&1 | tail -8
 # Cargo menamai binary dari nama file di src/bin/ -> corpus_api, ingest_jsonl, auth_api, chat_api, monitor_api.
 # systemd unit memakai nama lawu-* — buat alias copy (idempoten).
-for pair in corpus_api:lawu-corpus ingest_jsonl:lawu-ingest auth_api:lawu-auth chat_api:lawu-chat monitor_api:lawu-monitor; do
+for pair in corpus_api:lawu-corpus ingest_jsonl:lawu-ingest auth_api:lawu-auth chat_api:lawu-chat monitor_api:lawu-monitor training_api:lawu-training; do
   src="target/release/${pair%%:*}"
   dst="target/release/${pair##*:}"
   if [ ! -x "$src" ]; then
-    ls -1 target/release/ 2>/dev/null | grep -Ei 'corpus|ingest|auth|chat|monitor|lawu' || true
+    ls -1 target/release/ 2>/dev/null | grep -Ei 'corpus|ingest|auth|chat|monitor|training|lawu' || true
     die "binary ${pair%%:*} tidak ditemukan setelah build!"
   fi
   rm -f "$dst" && cp "$src" "$dst"
 done
-echo "  OK: 5 binary + alias lawu-{corpus,ingest,auth,chat,monitor}"
+echo "  OK: 6 binary + alias lawu-{corpus,ingest,auth,chat,monitor,training}"
 
 # ---------- A3. Salin python scripts (kalau izin) ----------
 log "A3. Salin web_ingest.py + extract_ebooks.py ke /opt/lawu/scripts"
@@ -186,9 +187,9 @@ fi
 /opt/lawu/venv/bin/pip install -q requests beautifulsoup4 lxml pypdf ebooklib python-docx
 /opt/lawu/venv/bin/python3 -c 'import requests, bs4, lxml, pypdf, ebooklib, docx'  # smoke import
 chown -R lawu:lawu /opt/lawu/venv /var/lib/lawu /var/log/lawu /mnt/data/ebooks /mnt/data/processed_markdowns
-# v3.6.0: 3 systemd unit baru (lawu-auth + lawu-chat + lawu-monitor)
-cp $KIT/lawu-corpus.service $KIT/lawu-auth.service $KIT/lawu-chat.service $KIT/lawu-monitor.service /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now lawu-corpus.service lawu-auth.service lawu-chat.service lawu-monitor.service
+# v3.6.0 + v3.7.0: 5 systemd unit (corpus + auth + chat + monitor + training)
+cp $KIT/lawu-corpus.service $KIT/lawu-auth.service $KIT/lawu-chat.service $KIT/lawu-monitor.service $KIT/lawu-training.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now lawu-corpus.service lawu-auth.service lawu-chat.service lawu-monitor.service lawu-training.service
 # v3.6.0: SQLite migration (auto-create tables kalau belum ada)
 # auth_api.rs sudah auto-migrate di first start, tapi pastikan dir + permission ready
 chown -R lawu:lawu /var/lib/lawu
@@ -214,11 +215,11 @@ if ! grep -q 'snippets/lawu-corpus.conf' /etc/nginx/sites-available/lawu-dashboa
   fi
 fi
 nginx -t && systemctl reload nginx
-echo "  OK: nginx snippet v3.6.0 (9 route) di-include"
+echo "  OK: nginx snippet v3.7.0 (10 route) di-include"
 
-# ---------- B5. Verifikasi v3.6.0 ----------
-echo "--- v3.6.0 health check (4 backend + nginx):"
-for p in 3001:lawu-server 3002:lawu-corpus 3003:lawu-auth 3004:lawu-monitor 3005:lawu-chat; do
+# ---------- B5. Verifikasi v3.7.0 ----------
+echo "--- v3.7.0 health check (6 backend):"
+for p in 3001:lawu-server 3002:lawu-corpus 3003:lawu-auth 3004:lawu-monitor 3005:lawu-chat 3006:lawu-training; do
   PORT=\${p%%:*}; NAME=\${p##*:}
   if curl -sf http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
     echo "  OK: \$NAME (:\$PORT) healthy"
@@ -231,14 +232,14 @@ echo "--- Test login default (dev@lawu.ai.id / 12345678):"
 TOKEN=\$(curl -s -X POST http://127.0.0.1:3003/api/auth/login -H 'Content-Type: application/json' -d '{"email":"dev@lawu.ai.id","password":"12345678"}' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("token","(FAIL)"))' 2>/dev/null)
 echo "  Token: \${TOKEN:0:40}..."
 echo
-echo "=== DEPLOY v3.6.0 SELESAI ==="
-echo "Buka dashboard → login dev@lawu.ai.id / 12345678 → verifikasi:"
-echo "  - Multi-session chat (sidebar: + Obrolan Baru)"
-echo "  - Monitoring real (CPU/RAM/disk/service status)"
+echo "=== DEPLOY v3.7.0 SELESAI ==="
+echo "Buka dashboard → login → verifikasi:"
+echo "  - UI emerald + gunung Lawu iconik + badge AI Lokal Indonesia"
+echo "  - Multi-session chat (sidebar: + Obrolan Baru) + markdown render rapi"
+echo "  - Monitoring real (6 metrik + 7 service status + 3 stat korpus)"
 echo "  - Ebook search (search box di halaman Ebook)"
-echo "  - User management (admin only, menu Manajemen User)"
-echo "  - API Keys (menu API Keys, generate lawu_<hex32>)"
-echo "  - Markdown render rapi di jawaban AI (code block, list, paragraf)"
+echo "  - **Training Model Fine** (menu baru — kelola materi + jadwal + evaluasi)"
+echo "  - User management + API Keys + Base URL"
 echo
 echo "WAJIB: ganti password default dev@lawu.ai.id setelah login pertama!"
 ROOTCMDS

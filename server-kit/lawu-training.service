@@ -1,0 +1,27 @@
+[Unit]
+Description=Lawu-2.5-Fine Training Management (Axum :3006)
+Documentation=https://github.com/lawu-2.5-fine/lawu-server
+After=network.target lawu-auth.service lawu-chat.service
+Wants=lawu-auth.service lawu-chat.service
+
+[Service]
+Type=simple
+User=lawu
+Group=lawu
+WorkingDirectory=/home/lawu/lawu-server
+ExecStart=/home/lawu/lawu-server/target/release/lawu-training
+Environment=LAWU_AUTH_DB_PATH=/var/lib/lawu/auth.db
+Environment=LAWU_JWT_SECRET_PATH=/var/lib/lawu/jwt_secret
+Environment=LAWU_LLM_URL=http://127.0.0.1:3005/api/chat
+Environment=RUST_LOG=info
+# Ambil konfigurasi tambahan dari environment file bila ada.
+EnvironmentFile=-/etc/lawu/training.env
+Restart=always
+RestartSec=5
+# Soft limits supaya OOM tidak membunuh service saat eval run besar.
+LimitNOFILE=65536
+StandardOutput=append:/var/log/lawu/training-api.log
+StandardError=append:/var/log/lawu/training-api.log
+
+[Install]
+WantedBy=multi-user.target
