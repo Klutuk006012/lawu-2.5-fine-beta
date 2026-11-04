@@ -1,0 +1,20 @@
+# ============================================================
+# lawu-corpus.service — systemd unit untuk Corpus & Ebook API
+# Lokasi di srv-fine: /etc/systemd/system/lawu-corpus.service
+# ============================================================
+[Unit]
+Description=Lawu-2.5-Fine Corpus & Ebook API (Axum :3002)
+After=network.target
+
+[Service]
+Type=simple
+User=lawu
+WorkingDirectory=/home/lawu/lawu-server
+ExecStart=/home/lawu/lawu-server/target/release/lawu-corpus
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/lawu/corpus-api.log
+StandardError=append:/var/log/lawu/corpus-api.log
+
+[Install]
+WantedBy=multi-user.target

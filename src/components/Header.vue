@@ -14,6 +14,10 @@ const viewTitle = computed(() => {
       return 'Konsol Chat'
     case '/search':
       return 'Pencarian Ebook'
+    case '/corpus':
+      return 'Web Korpus Lawu Fine'
+    case '/ebooks':
+      return 'Ebook & Korpus'
     case '/monitor':
       return 'Monitoring & Alert'
     case '/guide':

@@ -9,7 +9,10 @@ import {
   Settings2,
   MessageSquarePlus,
   Trash2,
+  Globe,
+  LibraryBig,
 } from 'lucide-vue-next'
+import lawuLogo from '../assets/lawu-logo-128.png'
 
 const router = useRouter()
 
@@ -65,11 +68,11 @@ defineExpose({ loadConversations })
     <!-- Logo -->
     <div class="px-4 pt-4">
       <div class="flex items-center gap-2.5">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-          <svg viewBox="0 0 32 32" fill="none" class="h-5 w-5" aria-hidden>
-            <path d="M3 26 L11 12 L16 19 L21 8 L29 26 Z" fill="currentColor" opacity="0.95" />
-          </svg>
-        </div>
+        <img
+          :src="lawuLogo"
+          alt="Logo Lawu-2.5-Fine: gunung Lawu, elang garuda, bendera Merah Putih, dan gelombang air"
+          class="h-10 w-10 rounded-xl shadow-sm"
+        />
         <div class="leading-tight">
           <p class="text-sm font-semibold tracking-tight text-foreground">Lawu-2.5-Fine</p>
           <p class="text-[10.5px] text-muted-foreground">Mesin Pencari Ebook · Dashboard</p>
@@ -113,6 +116,26 @@ defineExpose({ loadConversations })
           >
             <BookMarked class="h-4 w-4 shrink-0" />
             Pencarian Ebook
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/corpus"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-secondary"
+            active-class="bg-primary/10 font-medium text-primary"
+          >
+            <Globe class="h-4 w-4 shrink-0" />
+            Web Korpus
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/ebooks"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-secondary"
+            active-class="bg-primary/10 font-medium text-primary"
+          >
+            <LibraryBig class="h-4 w-4 shrink-0" />
+            Ebook &amp; Korpus
           </RouterLink>
         </li>
         <li>

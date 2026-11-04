@@ -1,0 +1,75 @@
+# ============================================================
+# Lawu-2.5-Fine — Daftar Web Korpus Utama (sumber resmi user)
+# Format: <kategori>\t<url>
+# Kategori: utama | berita | security | ai | custom | search-engine
+# Dipakai oleh: web_ingest.py (crawler) + corpus_api (API :3002)
+#
+# PRINSIP WAJIB (paten): Lawu Fine hanya belajar dari sumber
+# GRATIS dan OPEN SOURCE — terhindar dari API/langganan berbayar
+# dan API nakal.
+# ============================================================
+
+# --- KORPUS UTAMA: Teknologi inti yang Lawu Fine wajib kuasai ---
+utama	https://www.kernel.org/
+utama	https://ubuntu.com/
+utama	https://kartolo.sby.datautama.net.id/
+utama	https://rust-lang.org/
+utama	https://rust-lang.org/what/embedded/
+utama	https://vuejs.org/
+utama	https://www.intel.co.id/
+utama	https://www.amd.com/
+utama	https://www.arm.com/
+utama	https://armbian.com/
+utama	http://onnocenter.or.id/wiki/index.php/Wiki
+utama	https://www.debian.org/
+utama	https://www.debian.org/doc/devel-manuals
+utama	https://www.debian.org/doc/user-manuals#debian-handbook
+
+# --- KORPUS BERITA INDONESIA ---
+berita	https://kumparan.com/
+berita	https://www.kompas.tv/terbaru
+
+# --- KORPUS SECURITY / PENTESTING / CYBERSECURITY ---
+# Lawu Fine wajib pandai: Pentesting, Cyber Security, AI Security Engineer,
+# AI Pentesting Engineer, Digital Forensic Engineer.
+security	https://www.kali.org/
+security	https://parrotsec.org/
+security	https://parrotsec.org/docs/
+security	https://docs.rockylinux.org/9/
+security	https://docs.rockylinux.org/10/
+security	https://doddyferdiansyah.web.id/roadmap
+
+# --- KORPUS UPDATE KERENTANAN (CVE & OWASP) ---
+security	https://owasp.org/
+security	https://www.cve.org/
+
+# --- KORPUS PROTEKSI KEAMANAN APLIKASI & JARINGAN ---
+security	https://www.ipfire.org/
+security	https://opnsense.org/
+security	https://www.zenarmor.com/
+security	https://community.f5.com/
+security	https://www.fortinet.com/
+security	https://community.cisco.com/
+security	https://mikrotik.com/
+security	https://community.ui.com/
+
+# --- KORPUS E-LEARNING JARINGAN (ID-Networkers, agar Lawu Fine
+#     bisa membuat dataset belajar / elearning sendiri) ---
+security	https://www.idn.id/training/
+
+# --- KORPUS BELAJAR DARI MODEL AI LAIN ---
+ai	https://huggingface.co/zai-org/GLM-5.2
+ai	https://huggingface.co/papers/trending
+ai	https://aws.amazon.com/blogs/big-data/
+
+# --- KORPUS CUSTOM TAMBAHAN (Indonesia) ---
+custom	https://data.go.id/dataset
+custom	https://www.cloudkilat.com/id/
+custom	https://www.kencengsolusindo.co.id/
+
+# --- SEARCH ENGINE CADANGAN (fallback saat info tidak ada di korpus) ---
+# Lawu Fine wajib mempelajari dulu "Advanced Google Search" agar
+# pencarian akurat — materi pelajaran ada di korpus-skill/
+search-engine	https://www.google.com/advanced_search
+search-engine	https://scholar.google.co.id/
+search-engine	https://support.microsoft.com/en-us/bing/advanced-search-keywords
