@@ -15,7 +15,7 @@
 // ============================================================
 use axum::{
     extract::{
-        DefaultBodyLimit, Multipart, Query, State,
+        DefaultBodyLimit, Multipart, Path as AxumPath, Query, State,
     },
     http::StatusCode,
     response::IntoResponse,
@@ -29,6 +29,13 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Stdio,
+};
+use tantivy::{
+    collector::TopDocs,
+    index::Index,
+    query::{QueryParser, TermQuery},
+    schema::{IndexRecordOption, Value as TantivyValue, Field},
+    ReloadPolicy, TantivyDocument,
 };
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -86,6 +93,17 @@ struct EbookDto {
     modified_at: String,
     kind: String,            // pdf | epub | docx | txt
     indexed: bool,           // sudah masuk ebooks.jsonl?
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StatusDto {
+    kind: String,            // crawl | extract
+    running: bool,
+    pid: Option<u32>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+    last_result: serde_json::Value,
 }
 
 // ------------------------------ Helpers ----------------------------------
@@ -408,13 +426,12 @@ async fn list_ebooks() -> impl IntoResponse {
                 .flatten()
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_default();
-            let indexed = indexed_files.contains(&name);
             out.push(EbookDto {
-                name,
+                name: name.clone(),
                 size_bytes: meta.len(),
                 modified_at: modified,
-                kind,
-                indexed,
+                kind: kind.clone(),
+                indexed: indexed_files.contains(&name),
             });
         }
     }
@@ -573,6 +590,299 @@ async fn status() -> impl IntoResponse {
     }))
 }
 
+// ------------------------------ Tantivy search (NEW v3.6.0) ------------------------------
+const TANTIVY_INDEX_DIR: &str = "/mnt/data/tantivy_index/wikipedia-id-train";
+const EBOOKS_META_JSONL: &str = "/mnt/data/processed_markdowns/ebooks.jsonl";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EbookSearchResultDto {
+    docid: String,
+    title: String,
+    snippet: String,
+    kind: String,
+    source_file: String,
+    size_bytes: u64,
+    modified_at: String,
+    score: f32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EbookDetailDto {
+    docid: String,
+    title: String,
+    text: String,
+    kind: String,
+    source_file: String,
+    size_bytes: u64,
+    modified_at: String,
+}
+
+// Buka index Tantivy (lazy, dipanggil per-request agar aman terhadap restart/ingest).
+fn open_tantivy_index() -> Result<Index, String> {
+    let p = Path::new(TANTIVY_INDEX_DIR);
+    if !p.exists() {
+        return Err(format!(
+            "index dir tidak ditemukan: {TANTIVY_INDEX_DIR} (jalankan ingest dulu)"
+        ));
+    }
+    Index::open_in_dir(p).map_err(|e| format!("gagal buka index: {e:?}"))
+}
+
+// Cache meta dari ebooks.jsonl: docid -> (source_file, size_bytes, modified_at)
+// Loading dilakukan per-request (file biasanya <100KB).
+fn load_ebooks_meta() -> HashMap<String, (String, u64, String)> {
+    let mut out: HashMap<String, (String, u64, String)> = HashMap::new();
+    let jsonl = EBOOKS_META_JSONL;
+    let s = match fs::read_to_string(jsonl) {
+        Ok(s) => s,
+        Err(_) => return out,
+    };
+    for line in s.lines() {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+            let docid = v.get("docid").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            if docid.is_empty() {
+                continue;
+            }
+            let source_file = v
+                .get("source_file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            // size + modified dari file system bila ada
+            let (size, mtime) = if !source_file.is_empty() {
+                let fp = format!("{EBOOKS_DIR}/{source_file}");
+                fs::metadata(&fp)
+                    .map(|m| {
+                        let modified = m
+                            .modified()
+                            .ok()
+                            .and_then(|t| {
+                                t.duration_since(std::time::UNIX_EPOCH)
+                                    .ok()
+                                    .map(|d| {
+                                        chrono::DateTime::<chrono::Utc>::from_timestamp(
+                                            d.as_secs() as i64,
+                                            0,
+                                        )
+                                    })
+                                    .flatten()
+                            })
+                            .map(|dt| dt.to_rfc3339())
+                            .unwrap_or_default();
+                        (m.len(), modified)
+                    })
+                    .unwrap_or((0, String::new()))
+            } else {
+                (0, String::new())
+            };
+            out.insert(docid, (source_file, size, mtime));
+        }
+    }
+    out
+}
+
+// Ambil text + title dari Document Tantivy
+fn extract_doc_fields(
+    doc: &TantivyDocument,
+    field_title: Field,
+    field_text: Field,
+    field_docid: Field,
+) -> (String, String, String) {
+    let title = doc
+        .get_first(field_title)
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let text = doc
+        .get_first(field_text)
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let docid = doc
+        .get_first(field_docid)
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    (title, text, docid)
+}
+
+fn make_snippet(text: &str, _q: &str) -> String {
+    // first 200 chars + ellipsis
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= 200 {
+        text.to_string()
+    } else {
+        let s: String = chars.iter().take(200).collect();
+        format!("{s}...")
+    }
+}
+
+// GET /api/ebooks/search?q=<query>&limit=20
+async fn search_ebooks(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
+    let q = params.get("q").cloned().unwrap_or_default().trim().to_string();
+    let limit: usize = params
+        .get("limit")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(20)
+        .clamp(1, 50);
+    if q.is_empty() {
+        let empty: Vec<EbookSearchResultDto> = Vec::new();
+        return (
+            StatusCode::OK,
+            Json(json!({ "results": empty, "total": 0 })),
+        );
+    }
+    // Buka index & jalankan search di spawn_blocking (Tantivy sync, Axum async).
+    let res = tokio::task::spawn_blocking(move || -> Result<Vec<EbookSearchResultDto>, String> {
+        let index = open_tantivy_index()?;
+        let schema = index.schema();
+        let field_title = schema
+            .get_field("title")
+            .map_err(|e| format!("field 'title': {e:?}"))?;
+        let field_text = schema
+            .get_field("text")
+            .map_err(|e| format!("field 'text': {e:?}"))?;
+        let field_docid = schema
+            .get_field("docid")
+            .map_err(|e| format!("field 'docid': {e:?}"))?;
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .map_err(|e| format!("reader: {e:?}"))?;
+        reader.reload().ok();
+        let searcher = reader.searcher();
+        // QueryParser BM25 untuk field text + title
+        let qp = QueryParser::for_index(&index, vec![field_text, field_title]);
+        let query = qp
+            .parse_query(&q)
+            .map_err(|e| format!("parse query: {e}"))?;
+        // Ambil lebih banyak dulu karena akan difilter (hanya docid startswith "ebook-")
+        let fetch_n = limit * 5 + 20;
+        let hits = searcher
+            .search(&query, &TopDocs::with_limit(fetch_n))
+            .map_err(|e| format!("search: {e}"))?;
+
+        // Load meta sekali
+        let meta = load_ebooks_meta();
+
+        let mut out: Vec<EbookSearchResultDto> = Vec::new();
+        for (score, addr) in hits {
+            let doc = match searcher.doc::<TantivyDocument>(addr) {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+            let (title, text, docid) = extract_doc_fields(&doc, field_title, field_text, field_docid);
+            if !docid.starts_with("ebook-") {
+                continue;
+            }
+            let (source_file, size_bytes, modified_at) = meta
+                .get(&docid)
+                .cloned()
+                .unwrap_or((String::new(), 0, String::new()));
+            let snippet = make_snippet(&text, &q);
+            out.push(EbookSearchResultDto {
+                docid,
+                title,
+                snippet,
+                kind: "ebook".to_string(),
+                source_file,
+                size_bytes,
+                modified_at,
+                score,
+            });
+            if out.len() >= limit {
+                break;
+            }
+        }
+        Ok(out)
+    })
+    .await;
+    match res {
+        Ok(Ok(results)) => {
+            let total = results.len();
+            (StatusCode::OK, Json(json!({ "results": results, "total": total })))
+        }
+        Ok(Err(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("spawn: {e}") })),
+        ),
+    }
+}
+
+// GET /api/ebooks/:docid
+async fn get_ebook_by_docid(AxumPath(docid): AxumPath<String>) -> impl IntoResponse {
+    let res = tokio::task::spawn_blocking(move || -> Result<Option<EbookDetailDto>, String> {
+        let index = open_tantivy_index()?;
+        let schema = index.schema();
+        let field_title = schema
+            .get_field("title")
+            .map_err(|e| format!("field 'title': {e:?}"))?;
+        let field_text = schema.get_field("text")
+            .map_err(|e| format!("field 'text': {e:?}"))?;
+        let field_docid = schema
+            .get_field("docid")
+            .map_err(|e| format!("field 'docid': {e:?}"))?;
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .map_err(|e| format!("reader: {e:?}"))?;
+        reader.reload().ok();
+        let searcher = reader.searcher();
+        let term = tantivy::Term::from_field_text(field_docid, &docid);
+        let q = TermQuery::new(term, IndexRecordOption::Basic);
+        let hits = searcher
+            .search(&q, &TopDocs::with_limit(1))
+            .map_err(|e| format!("search: {e}"))?;
+        if hits.is_empty() {
+            return Ok(None);
+        }
+        let (_, addr) = hits[0];
+        let doc = searcher
+            .doc::<TantivyDocument>(addr)
+            .map_err(|e| format!("doc: {e}"))?;
+        let (title, text, _docid_found) =
+            extract_doc_fields(&doc, field_title, field_text, field_docid);
+        let meta = load_ebooks_meta();
+        let (source_file, size_bytes, modified_at) = meta
+            .get(&docid)
+            .cloned()
+            .unwrap_or((String::new(), 0, String::new()));
+        Ok(Some(EbookDetailDto {
+            docid,
+            title,
+            text,
+            kind: "ebook".to_string(),
+            source_file,
+            size_bytes,
+            modified_at,
+        }))
+    })
+    .await;
+    match res {
+        Ok(Ok(Some(dto))) => (StatusCode::OK, Json(json!({ "ebook": dto }))),
+        Ok(Ok(None)) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "ebook tidak ditemukan" })),
+        ),
+        Ok(Err(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("spawn: {e}") })),
+        ),
+    }
+}
+
 // ------------------------------ main -------------------------------------
 #[tokio::main]
 async fn main() {
@@ -594,6 +904,9 @@ async fn main() {
         .route("/api/ebooks", get(list_ebooks))
         .route("/api/ebooks/upload", post(upload_ebook))
         .route("/api/ebooks/extract", post(extract_ebooks))
+        // ---- Ebook Search via Tantivy (NEW v3.6.0) ----
+        .route("/api/ebooks/search", get(search_ebooks))
+        .route("/api/ebooks/{docid}", get(get_ebook_by_docid))
         // ---- Ingest JSONL -> Tantivy (tombol UI "Ingest ke Index") ----
         .route("/api/corpus/ingest", post(ingest_corpus))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD))

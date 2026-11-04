@@ -1,0 +1,22 @@
+# ============================================================
+# lawu-monitor.service — systemd unit untuk System Monitor API
+# Lokasi di srv-fine: /etc/systemd/system/lawu-monitor.service
+# ============================================================
+[Unit]
+Description=Lawu-2.5-Fine System Monitor (Axum :3004)
+After=network.target lawu-auth.service
+
+[Service]
+Type=simple
+User=lawu
+WorkingDirectory=/home/lawu/lawu-server
+ExecStart=/home/lawu/lawu-server/target/release/lawu-monitor
+Environment=LAWU_AUTH_DB_PATH=/var/lib/lawu/auth.db
+Environment=LAWU_JWT_SECRET_PATH=/var/lib/lawu/jwt_secret
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/lawu/monitor-api.log
+StandardError=append:/var/log/lawu/monitor-api.log
+
+[Install]
+WantedBy=multi-user.target

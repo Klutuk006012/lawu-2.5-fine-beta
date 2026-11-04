@@ -1,0 +1,23 @@
+# ============================================================
+# lawu-chat.service — systemd unit untuk Multi-session Chat API
+# Lokasi di srv-fine: /etc/systemd/system/lawu-chat.service
+# ============================================================
+[Unit]
+Description=Lawu-2.5-Fine Multi-session Chat (Axum :3005)
+After=network.target lawu-auth.service lawu-server.service
+
+[Service]
+Type=simple
+User=lawu
+WorkingDirectory=/home/lawu/lawu-server
+ExecStart=/home/lawu/lawu-server/target/release/lawu-chat
+Environment=LAWU_AUTH_DB_PATH=/var/lib/lawu/auth.db
+Environment=LAWU_JWT_SECRET_PATH=/var/lib/lawu/jwt_secret
+Environment=LAWU_LLM_URL=http://127.0.0.1:3001/api/chat
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/lawu/chat-api.log
+StandardError=append:/var/log/lawu/chat-api.log
+
+[Install]
+WantedBy=multi-user.target

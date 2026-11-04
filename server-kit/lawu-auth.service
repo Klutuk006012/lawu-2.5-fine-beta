@@ -1,0 +1,22 @@
+# ============================================================
+# lawu-auth.service — systemd unit untuk Auth + User + API Key API
+# Lokasi di srv-fine: /etc/systemd/system/lawu-auth.service
+# ============================================================
+[Unit]
+Description=Lawu-2.5-Fine Auth + User Mgmt + API Keys (Axum :3003)
+After=network.target
+
+[Service]
+Type=simple
+User=lawu
+WorkingDirectory=/home/lawu/lawu-server
+ExecStart=/home/lawu/lawu-server/target/release/lawu-auth
+Environment=LAWU_AUTH_DB_PATH=/var/lib/lawu/auth.db
+Environment=LAWU_JWT_SECRET_PATH=/var/lib/lawu/jwt_secret
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/lawu/auth-api.log
+StandardError=append:/var/log/lawu/auth-api.log
+
+[Install]
+WantedBy=multi-user.target
