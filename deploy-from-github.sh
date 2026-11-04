@@ -48,7 +48,10 @@ cp "$SRC_DIR/server-kit/auth_api.rs"     "$SRV_DIR/src/bin/auth_api.rs"
 cp "$SRC_DIR/server-kit/chat_api.rs"     "$SRV_DIR/src/bin/chat_api.rs"
 cp "$SRC_DIR/server-kit/monitor_api.rs"  "$SRV_DIR/src/bin/monitor_api.rs"
 cp "$SRC_DIR/server-kit/auth_middleware.rs" "$SRV_DIR/src/auth_middleware.rs"
-echo "  OK: corpus_api + ingest_jsonl + auth_api + chat_api + monitor_api + auth_middleware"
+# v3.6.0: copy migrations/schema.sql (di-include_str! oleh auth_api.rs saat compile)
+mkdir -p "$SRV_DIR/migrations"
+cp "$SRC_DIR/server-kit/migrations/schema.sql" "$SRV_DIR/migrations/schema.sql"
+echo "  OK: corpus_api + ingest_jsonl + auth_api + chat_api + monitor_api + auth_middleware + migrations/schema.sql"
 
 # ---------- A2. Patch Cargo.toml + build ----------
 log "A2. Patch Cargo.toml + cargo build --release (±1-2 menit)"
