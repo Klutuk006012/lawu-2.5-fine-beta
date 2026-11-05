@@ -34,9 +34,9 @@ const steps = ref<Step[]>([
 ])
 
 const statusBadge = {
-  done: { label: '✓ Selesai', class: 'bg-[#e6f4ea] text-[#137333]' },
+  done: { label: '✓ Selesai', class: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
   pending: { label: '⏳ Tertunda', class: 'bg-secondary text-muted-foreground' },
-  'in-progress': { label: '▶ Berjalan', class: 'bg-[#e8f0fe] text-[#1a73e8]' },
+  'in-progress': { label: '▶ Berjalan', class: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
 }
 </script>
 
@@ -52,12 +52,12 @@ const statusBadge = {
       </p>
 
       <div class="mt-4 grid grid-cols-3 gap-3">
-        <div class="rounded-lg bg-[#e6f4ea] px-3 py-2 text-center">
-          <p class="text-2xl font-bold text-[#137333]">{{ steps.filter(s => s.status === 'done').length }}</p>
+        <div class="rounded-lg bg-emerald-500/10 px-3 py-2 text-center">
+          <p class="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{{ steps.filter(s => s.status === 'done').length }}</p>
           <p class="text-[11px] text-muted-foreground">Selesai</p>
         </div>
-        <div class="rounded-lg bg-[#e8f0fe] px-3 py-2 text-center">
-          <p class="text-2xl font-bold text-[#1a73e8]">{{ steps.filter(s => s.status === 'in-progress').length }}</p>
+        <div class="rounded-lg bg-amber-500/10 px-3 py-2 text-center">
+          <p class="text-2xl font-bold text-amber-700 dark:text-amber-400">{{ steps.filter(s => s.status === 'in-progress').length }}</p>
           <p class="text-[11px] text-muted-foreground">Berjalan</p>
         </div>
         <div class="rounded-lg bg-secondary px-3 py-2 text-center">

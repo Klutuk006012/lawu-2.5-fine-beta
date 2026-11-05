@@ -205,7 +205,7 @@ function formatDate(iso: string | null) {
           class="rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
         >
           <div class="flex flex-wrap items-center gap-2">
-            <span class="inline-flex items-center gap-1 rounded-md bg-[#e8f0fe] px-2 py-0.5 text-xs font-medium text-[#1a73e8]">
+            <span class="inline-flex items-center gap-1 rounded-md bg-teal-500/10 px-2 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-400">
               <Globe class="h-3 w-3" />
               Wikipedia ID
             </span>

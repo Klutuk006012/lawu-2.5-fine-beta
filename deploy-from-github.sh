@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.7.0 di srv-fine
+# deploy-from-github.sh — Deploy Lawu-2.5-Fine v3.7.1 di srv-fine
 # SATU SUMBER: GitHub repo lawu-2.5-fine-beta (Klutuk006012)
 # ------------------------------------------------------------
 # Jalankan di srv-fine sebagai user LAWU:
